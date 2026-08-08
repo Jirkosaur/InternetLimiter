@@ -122,7 +122,28 @@ Průběžný stav projektu **InternetLimiter** – lokální aplikace typu NetLi
 **Pozorování / problémy:**
 - Projekt byl úspěšně zredukován na štíhlé MVP jádro.
 
-**Další krok:** Fáze 3 – Ověření funkčnosti / spouštění (§7).
+**Další krok:** Fáze 3, 4 a 5.
+
+---
+
+## 2026-08-09 01:56 - Fáze 3, 4, 5: Dokumentace a Publikace na GitHub (§8, §9)
+
+**Stav:** ✅ hotovo
+
+**Provedeno:**
+- Přepsán `README.md` tak, aby reflektoval pouze MVP rozsah, požadavky na .NET 8, administrátorská práva pro WinDivert, postup sestavení a licence (MIT / WinDivert LGPL-3.0).
+- Odstraněny nepoužívané dokumentační soubory z původního repozitáře (`RESEARCH.md`, `ROADMAP.md`, `Roadmap_Blocked.md`, `CHANGELOG.md`).
+- Vytvořeno veřejné GitHub repozitář `InternetLimiter` přes `gh repo create` na účtu Jirkosaur.
+- Všechny commity zpushnuty do vzdálené větve `origin/main`.
+
+**Build/test:** `dotnet build` → OK (0 chyb, 0 varování), `dotnet test` → OK (108 testů prošlo).
+
+**Pozorování / problémy:**
+- URL repozitáře: https://github.com/Jirkosaur/InternetLimiter
+- Publikace i build proběhly 100% bez chyb.
+
+**Další krok:** Všechny fáze plánu EXECUTION_PLAN.md byly úspěšně dokončeny (DoD splněno).
+
 
 
 
