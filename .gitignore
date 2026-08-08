@@ -1,0 +1,53 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+packages/
+*.nupkg
+*.snupkg
+
+## IDE
+.vs/
+.vscode/
+*.code-workspace
+.idea/
+*.DotSettings.user
+
+## Build
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+artifacts/
+publish/
+
+## OS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# AI config
+CLAUDE.md
+CODEX_CHANGELOG.md
+AGENTS.md
+.claude/
+.codex/
+
+# AI config
+.ai/
+PROJECT_CONTEXT.md
+CONTINUATION_PROMPT.md

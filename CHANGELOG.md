@@ -1,0 +1,218 @@
+# Changelog
+
+## Unreleased
+
+### Added
+- First-run setup wizard: 3-page guided walkthrough for new users (requirements, tips, finish)
+- Wizard shows on first launch, stores completion marker in %LocalAppData%\OpenNetLimit
+- Skip button available on all wizard pages
+- Comprehensive README with feature list, setup guide, IPC protocol reference, troubleshooting
+- Accessibility: AutomationProperties on limit dialog text boxes
+- Quota management: daily/weekly/monthly data caps per app with QuotaConfig on rules
+- QuotaTracker monitors usage vs limits, fires warning and exceeded events
+- Auto-throttle or auto-block when quota exceeded (configurable per rule)
+- Warning threshold (default 80%) triggers notification event before quota hit
+- Bandwidth priority system: High/Normal/Low priority on rules
+- Profile system: ProfileName field on BandwidthRule for grouping rules into profiles
+- QUOTAS IPC command returns all quota states with usage percentages
+- Windows service detection: identifies svchost service names via SCM API
+- UWP/Store app detection: identifies AppX package names via GetPackageFullName
+- ServiceName and AppxPackage fields on ProcessTrafficInfo for display
+- SQLite-backed traffic statistics: per-process hourly and daily byte counters
+- TrafficStatsDb with upsert-on-conflict aggregation, WAL mode, 90-day auto-purge
+- STATS_HOURLY, STATS_DAILY, STATS_TOP IPC commands for querying historical data
+- Real-time traffic chart (LiveCharts2): 60-second scrolling download/upload graph
+- Chart shows download (blue) and upload (green) with smooth line rendering
+- Historical data query: top processes by total bandwidth, per-process time series
+- Bounded packet scheduler: rate-limited packets enter per-process queues instead of blocking the capture thread
+- PacketScheduler with 512-packet per-process queue limit, 2-second max delay, and automatic drop policy
+- Delay/drop/sent counters on PacketScheduler for observability
+- Graceful queue flush on shutdown (all queued packets reinjected)
+- WPF UI connects to service via named pipe with auto-reconnect
+- Live process list with per-second bandwidth and total byte display
+- Honest connection states: Disconnected (gray), Connecting (orange), Connected (green), Error (red)
+- Auto-reconnect every 3 seconds when service is not running
+- 1-second polling for traffic snapshots and rule counts
+- Proper ViewModel disposal on window close
+- Rule scheduling: time-of-day and day-of-week recurring schedules on BandwidthRule
+- Import/export rule sets via IPC (EXPORT_RULES / IMPORT_RULES commands)
+- Import supports merge (append) and replace modes
+- DNS resolver with 10-minute cache for reverse-resolving IP addresses to hostnames
+- Connection logger: rolling log of established, deleted, and blocked connections (max 10K entries)
+- CONNECTION_LOG IPC command returns last 100 log entries
+- Blocked events include matching rule name for debugging
+- Connection blocking: rules with Action=Block drop matching packets silently
+- TotalBlocked counter on interceptor for blocked packet tracking
+- PacketsBlocked exposed via STATUS diagnostic command
+- System tray icon with Show/Exit context menu
+- Minimize-to-tray: window hides when minimized, double-click tray icon to restore
+- Right-click context menu on process list: Set Bandwidth Limit / Remove Limit
+- SetLimitDialog for entering download/upload limits in KB/s
+- Wildcard pattern matching for rule paths (`*\chrome.exe`, `C:\app?.exe`)
+- Accessibility: AutomationProperties on all key UI elements (status, summary, process list, status bar)
+- LiveSetting=Polite on connection status for screen reader announcements
+- Keyboard tab navigation cycle on main window
+- Directory.Build.props with NuGet audit (moderate level, all mode)
+- UI displays permission mode (Administrator / Read-only) in status bar
+- Admin detection on UI startup determines available actions
+- Per-connection byte tracking with thread-safe AddBytesSent/AddBytesReceived on ConnectionInfo
+- IPv4/IPv6 detection on connections (IsIPv6 property)
+- Network loop records per-connection bytes alongside per-process totals
+- Diagnostic STATUS command returns service uptime, active flows/rules, packet delay/drop/sent counters
+- DiagnosticInfo model in Core for structured status reporting
+- Structured console logging with timestamps in service
+- Log directory created at %ProgramData%\OpenNetLimit\logs
+- RuleReconciler: rule changes atomically update live rate limiter state via OnRulesChanged event
+- Rule file versioning: schema envelope with version field, backward-compatible with legacy array format
+- Atomic rule file save (write to temp, rename) prevents corruption on crash
+- WinDivert native binaries (WinDivert.dll, WinDivert64.sys) automatically included via Native.WinDivert NuGet package
+- Third-party license notices (THIRD-PARTY-NOTICES.txt) documenting WinDivert LGPL/GPL and SharpDivert MIT
+- README updated with current project status, WinDivert trust/HVCI/EDR guidance, and troubleshooting
+- Fail-safe service lifecycle: validates admin privileges before starting interceptor
+- Graceful shutdown: interceptor stop and rule save wrapped in try/catch to prevent data loss
+- Last-error recording: writes startup/crash errors to %ProgramData%\OpenNetLimit\last-error.txt
+- Rule load failure recovery: starts with empty rule set instead of crashing
+- Pipe server crash isolation: logged and recorded without taking down the engine
+- Data directory auto-creation on startup
+- REST API for local automation and third-party integration (`/api/v1/status`, snapshots, processes, rules, stats, quotas, connection log)
+- Optional remote administration via explicit non-loopback REST bind and API key
+- Keyed REST rule mutation endpoints for add/update/delete/import
+- Optional VirusTotal process verification using local SHA-256 hashes and cached file reports
+- `VERIFY_PROCESS` IPC command and REST verification endpoints for executable reputation checks
+- Optional cached GeoIP lookup for public remote IP country/city display
+- `GEOIP` IPC command and REST GeoIP endpoints with private-address suppression
+- Bandwidth alert rules with per-process/path thresholds, cooldowns, persistence, and recent event history
+- Tray balloon notifications for newly triggered bandwidth alerts in the WPF UI
+- Alert rule/event IPC commands and REST endpoints
+- Manifest-based webhook plugin system for alert and quota events
+- Plugin list/reload IPC commands and REST endpoints
+- Persisted dark/light WPF theme support with a status-bar toggle
+- English/Spanish WPF localization with a persisted status-bar language toggle
+
+### Security
+- Secured named-pipe IPC with explicit ACL (Administrators: FullControl, Users: ReadWrite)
+- Added client identity checking via impersonation for mutation commands
+- Mutation commands (ADD_RULE, REMOVE_RULE, UPDATE_RULE) require administrator privileges
+- Read-only commands (SNAPSHOT, RULES, PROCESSES, STATUS) available to all authenticated local users
+- Added IPC protocol definitions with versioning and command validation
+- Input length limits prevent oversized command injection
+- Fixed REMOVE_RULE bug that was calling RemoveAll() instead of removing only the specified rule
+- REST API is loopback-only by default; non-loopback listener prefixes require `OPENNETLIMIT_ENABLE_REMOTE_API=1` and `OPENNETLIMIT_API_KEY`
+- REST mutations require `X-OpenNetLimit-Key` or bearer token authentication
+- VirusTotal verification is opt-in via `OPENNETLIMIT_VIRUSTOTAL_API_KEY`, sends hashes only, and requires admin/keyed access
+- GeoIP lookups are opt-in via `OPENNETLIMIT_GEOIP_ENABLED=1`, require admin/keyed access, and never query private, loopback, link-local, or multicast addresses
+- Alert rule mutations require existing admin/keyed control-plane access
+- Plugins are opt-in via `OPENNETLIMIT_PLUGINS_ENABLED=1` and dispatch webhook events only; no in-process plugin DLL/script loading
+
+### Fixed
+- Fixed QuotaTracker period reset: quotas now track a baseline so `ResetPeriod()` correctly counts only bytes since the reset, not cumulative totals
+- Fixed PipeServer admin impersonation: `IsClientAdmin` now captures client identity inside the `RunAsClient` callback instead of reading the service's own token afterward
+- Fixed TrafficStatsDb thread safety: all SQLite operations now serialized via lock to prevent corruption from concurrent stats/purge timer threads
+- Fixed payloadLength calculation: uses WinDivert `Data.Length` (actual payload) instead of `packet.Length` (full packet including IP/TCP/UDP headers)
+- Fixed SetLimitAsync: updates existing rule for a process instead of creating duplicates on repeated limit changes
+- Fixed PipeClient thread safety: SemaphoreSlim serializes concurrent send/receive pairs to prevent interleaved pipe I/O
+- Fixed DnsResolver TOCTOU: merged separate cache and expiry dictionaries into a single ConcurrentDictionary with a record struct entry
+- Bounded MainViewModel._seenAlertIds to prevent unbounded memory growth in long-running UI sessions
+- Extracted shared WildcardMatcher utility in Core, replacing three duplicate implementations in BandwidthRule, BandwidthAlertRule, and BandwidthAlertTracker
+- Cached ProcessIdentifier service name lookups with 60-second TTL to avoid enumerating all Windows services on every svchost flow
+- Upgraded LiveCharts2 from pre-release 2.0.0-rc4.5 to stable 2.0.5
+- Protected system processes (svchost, lsass, csrss, dns, etc.) are now exempt from rate limiting and blocking to prevent network starvation from overly broad wildcard rules
+- Added WDAC/EDR enterprise deployment documentation to README with WinDivert SHA-256 hashes, WDAC allowlist XML, and EDR allowlist steps for common products
+- Rule conditions: rules can now filter by remote IP address (exact or CIDR subnet), remote port, and protocol (TCP/UDP). Interceptor evaluates connection-level conditions per packet via `FindMatchingRule` overload
+- Added `ProtocolFilter`, `MatchesConnection`, and `HasConnectionFilters` to `BandwidthRule` model; existing `RemoteAddressFilter`/`RemotePortFilter` fields now active in rule evaluation
+- App groups: rules can be assigned to named groups via `GroupName` field. `GROUPS` and `GROUP_RULES` IPC commands, `GET /api/v1/groups` and `GET /api/v1/groups/{name}` REST endpoints for querying groups and their rules
+- CLI tool (`onl`): scriptable rule management, status queries, stats, group queries, and import/export via the REST API. Supports `OPENNETLIMIT_API_URL` and `OPENNETLIMIT_API_KEY` environment variables
+
+### Security
+- Added SourceGear.sqlite3 3.50.4.5 to override vulnerable SQLitePCLRaw transitive dependency (CVE-2025-6965, SQLite < 3.50.2 memory corruption)
+- Added PluginManager SSRF protection: webhook URLs targeting loopback, private RFC1918, or link-local addresses are rejected at manifest validation
+- Added 10-second HTTP timeout on plugin webhook dispatch to prevent indefinite hangs
+- DPAPI-protected API key storage: service checks `%ProgramData%\OpenNetLimit\apikey.protected` (encrypted with LocalMachine scope) when `OPENNETLIMIT_API_KEY` env var is not set
+- Rules support `CountryFilter` array for country-code-based connection filtering using the existing GeoIP infrastructure
+- RESX-based localization: replaced hardcoded string dictionaries with `Strings.resx` (English) and `Strings.es.resx` (Spanish) resource files via `ResourceManager`. New languages can be added by dropping satellite assemblies without code changes
+- RTL language support: main window applies `FlowDirection.RightToLeft` when the current UI culture uses a right-to-left script
+
+- DNS-based rule matching: rules can specify `DnsDomainFilter` to match traffic by resolved domain name. Supports exact domains (`cdn.example.com`) and wildcard subdomains (`*.example.com`). DNS responses (UDP port 53) are parsed in real-time to build an IP→domain correlation cache used during rule evaluation. DnsDomainCache holds up to 50K entries with TTL-based expiry.
+- Historical bandwidth timeline: new History tab with scrollable column chart showing per-process hourly/daily bandwidth from SQLite stats database; process filter dropdown and hourly/daily granularity toggle; localized in English and Spanish
+- Fixed History tab Daily radio button: clicking "Daily" now correctly switches chart to daily granularity (was unbound, chart always showed hourly data regardless of selection)
+- Quota enforcement: quotas with OnExceeded=Throttle now reduce process rate to ThrottleBytesPerSecond; OnExceeded=Block drops traffic to zero. Limits revert on quota period reset via rule reconciliation.
+- Fixed FlowTracker data race: RegisterFlow creates new ConnectionInfo instead of mutating shared object; UnregisterFlow replaces entry to avoid torn DateTime? reads by PurgeStale
+- Fixed DnsResponseParser out-of-bounds: compressed DNS pointer targets are now bounds-checked
+- Fixed WinDivertInterceptor StartAsync race: `_isRunning` set before task launch to prevent concurrent StopAsync from missing running tasks
+- Fixed WinDivertInterceptor Dispose deadlock: uses ConfigureAwait(false) to avoid synchronization context deadlock
+- Fixed PipeClient Disconnect/SendCommandAsync race: stream references captured under lock before I/O; Disconnect acquires same lock
+- Fixed ConnectionLogger/BandwidthAlertTracker trim TOCTOU: Count check moved inside lock to prevent over-trimming under contention
+- Fixed BandwidthAlertTracker stale-entry prune: uses maximum rule CooldownSeconds instead of hardcoded 300s, so long-cooldown alerts are not re-fired early
+- Fixed RestApiServer body-read DoS: reads with hard byte cap on the stream instead of reading entire body before checking size, preventing chunked-encoding OOM attacks
+- Fixed DnsResolver cache eviction: when all entries are fresh and cache exceeds capacity, evicts oldest entries instead of silently growing past limit
+- Fixed HistoryViewModel CancellationTokenSource leak: old CTS disposed before replacement
+- Fixed RuleEngine.ImportRules: imported rules now validated (must have ProcessName or ProcessPath), matching AddRule/UpdateRule behavior
+- Fixed QuotaTracker.Update: uses QuotaState.PercentUsed property instead of duplicating the percentage formula
+- Removed dead pass-through properties from PipeServer (DiagnosticProvider, ConnectionLogProvider, StatsProvider, QuotaTracker) — EngineWorker sets these on ControlPlaneState directly
+- Fixed CLI import stdin DoS: reads with 1MB hard cap matching REST API body limit
+- Extracted shared EnvHelper.IsEnabled utility, removing four copy-pasted implementations across RestApiOptions, GeoIpOptions, PluginOptions, VirusTotalOptions
+- Fixed TrafficMonitor first-packet race: replaced AddOrUpdate with GetOrAdd + atomic AddBytes, preventing silent byte loss when two threads race on a new process
+- Removed unused BandwidthPriority enum and field from BandwidthRule (dead data never read by any runtime code)
+- Download/upload speed colors now use theme-aware DynamicResource brushes (DownloadBrush/UploadBrush) that adapt to light/dark themes
+- SetLimitDialog: inline validation with red border and error text replaces blocking MessageBox; screen-reader-friendly with LiveSetting=Assertive
+- Disabled context menu items now show tooltip explaining "Administrator privileges required"
+- DataGrid columns use star-sizing instead of hardcoded pixel widths for DPI/font-size resilience
+- Fixed time-dependent RuleSchedule tests: use fixed local-time DateTime values instead of DateTime.Today to avoid midnight/timezone fragility
+- DnsResolverTests: failure test is now resilient to captive-portal DNS that resolves all addresses
+- Added PacketScheduler tests: MaxDelay drop, queue capacity enforcement, multi-process isolation, RemoveProcess behavior (5 new tests)
+- Fixed BandwidthAlertTracker event trimming race: uses lock-based approach matching ConnectionLogger
+- Fixed BandwidthAlertTracker.GetRecentEvents: array snapshot + slice from end instead of O(n) Reverse()
+- Fixed PluginManager SSRF: webhook URLs with hostnames (non-IP) are now rejected at manifest validation
+- Fixed QuotaTracker mutable state leak: GetAllQuotaStates/GetQuotaState return defensive copies
+- Fixed EngineWorker quota reset timer race: _lastQuotaResetCheck uses Interlocked long ticks
+- Fixed ParseIPv6Addr hot-path allocation: constructs IPAddress from 16-byte stackalloc span
+- Fixed TrafficMonitor snapshot TOCTOU: exchanged values captured in locals, totals computed from locals
+- Fixed TrafficMonitor TakeSnapshot returning live mutable references: creates shallow copy per ProcessTrafficInfo
+- Fixed PacketScheduler stale queue accumulation: empty queues idle >5 minutes pruned in DrainReady
+- Fixed WinDivert handle leak: StartAsync disposes partially-opened handles on failure
+- Fixed HistoryViewModel concurrent LoadDataAsync: cancels previous load on new request
+- Prune BandwidthAlertTracker _lastTriggered: entries older than 300s removed at start of each Update sweep
+- Added RuleSchedule tests: daytime/overnight wrapping, day-of-week, boundary conditions
+- Added DnsResponseParser tests: AAAA records, truncated payloads, invalid pointers, oversized responses
+- Added IPv6 CIDR matching tests: /64 and /128 prefixes
+
+### Fixed
+- Enabled TreatWarningsAsErrors in Directory.Build.props — nullable analysis and CS-series warnings now break the build
+- Added WinDivert driver signature validation at startup: logs warning if binary certificate is expired, with link to WinDivert#397 and cross-signing policy context
+- Fixed ConnectionLogger counter drift: replaced Interlocked.Increment/_count with lock-based trim using ConcurrentQueue.Count directly
+- Eliminated ParsePacket IPAddress string roundtrip: IP addresses now constructed from bytes via stackalloc spans — zero string allocation in the hot packet-processing loop
+- Added TrafficStatsDb purge transaction: hourly and daily DELETEs now wrapped in a transaction for atomicity
+- Validated BandwidthRule requires ProcessName or ProcessPath: AddRule/UpdateRule throw ArgumentException for rules that cannot match any process
+- Added quota period auto-reset: daily quotas reset at midnight, weekly on Monday midnight, monthly on 1st midnight via timer in EngineWorker
+- Added DnsResolver cache eviction: max 10,000 entries with periodic pruning of expired entries
+- Added DnsResolver and ConnectionLogger unit tests covering cache behavior, entry trimming, and recent retrieval
+- Fixed RuleSchedule UTC time comparison: schedule start/end times now evaluated against local time instead of UTC
+- Fixed REST API rate-limiter dictionary leak: idle rate limiters (>10 minutes) are now pruned and disposed
+- Fixed PluginManager IPv4-mapped IPv6 SSRF bypass: `::ffff:192.168.x.x` addresses now correctly detected as private via MapToIPv4
+- Fixed silent crash in WinDivert capture loops: non-cancellation exceptions (driver faults, I/O errors) are now caught, logged, and retried with backoff; persistent failures (10 consecutive) set `_isRunning = false`
+- Fixed TrafficMonitor snapshot race: `CurrentDownloadBytesPerSecond`/`CurrentUploadBytesPerSecond` now use volatile-backed fields to prevent torn reads by concurrent pipe/REST/UI callers
+- Fixed PacketScheduler dispose race: `_sendLock` serializes DrainReady timer callback and Dispose flush loop to prevent concurrent WinDivert handle access
+- Fixed FlowTracker memory leak: closed flows are now purged every 5 minutes (PurgeStale was dead code)
+- Fixed named pipe squatting vulnerability: first pipe instance uses FirstPipeInstance flag to prevent attackers from pre-creating the pipe name
+- Fixed DnsResolver swallowing OperationCanceledException: shutdown cancellation is now properly propagated instead of being caught and cached as null
+- Fixed QuotaTracker unsynchronized state mutation: per-state lock prevents torn reads and double-fire of warning/exceeded events under concurrent timer ticks
+- Fixed CLI crash on invalid numeric input: --download, --upload, and --port now validate with TryParse and show user-friendly error messages
+- Pinned floating NuGet versions (Microsoft.Data.Sqlite 8.0.11, ProtectedData 8.0.0) for reproducible builds
+- Added pipe server auto-restart with exponential backoff (1s → 30s) on crash — IPC recovers without service restart
+- Fixed PluginManager SSRF gap for IPv6 ULA (`fc00::/7`) and link-local (`fe80::/10`) addresses
+- Fixed ConnectionLogger.GetRecent O(n) performance — replaced Reverse().Take() with array slice from end
+- Made WinDivertInterceptor.IsRunning thread-safe via volatile backing field
+- Enhanced driver load failure diagnostics: last-error.txt now includes HVCI, EDR, and driver signing troubleshooting steps
+- Added Windows Event Log integration: service events written to Application log under "OpenNetLimit" source
+- RuleEngine now returns defensive copies from GetRule, GetAllRules, FindMatchingRule, and GetRulesByGroup — callers can no longer mutate internal state
+- Added REST API rate limiting: 10 requests per 10-second window per caller IP; returns 429 when exceeded
+- Exposed IPacketInterceptor diagnostics (TotalBlocked, TotalDelayed, TotalDropped, TotalSent, GetRecentConnectionLog) through the interface — EngineWorker no longer downcasts to WinDivertInterceptor
+- Replaced DPAPI LocalMachine API key storage with Windows Credential Manager (CredWrite/CredRead) scoped to the service account; legacy DPAPI keys auto-migrated on first load
+- Restored solution build: all 5 projects (Core, Engine, Service, UI, Tests) compile successfully
+- Fixed WinDivertInterceptor to use correct SharpDivert 1.1.0 API (enums, RecvEx tuple return, address access, packet parsing)
+- Fixed TrafficMonitor thread-safe byte counters (Interlocked.Add on ProcessTrafficInfo backing fields)
+- Fixed test project TFM mismatch (net8.0 → net8.0-windows to match Engine dependency)
+- Fixed PipeServer using-statement nesting syntax error
+- Added missing `using Xunit;` directives in all test files
+- Pinned .NET SDK to 8.0.x via global.json to avoid broken .NET 9 SDK test runner
+- Traffic snapshots now preserve executable paths when available, enabling process verification and path-aware integrations
