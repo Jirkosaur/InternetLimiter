@@ -67,4 +67,34 @@ Průběžný stav projektu **InternetLimiter** – lokální aplikace typu NetLi
 
 **Další krok:** Fáze 1 – Průzkum kódu a inventář (§5).
 
+---
+
+## 2026-08-09 01:46 - Fáze 1: Průzkum kódu a inventář (§5)
+
+**Stav:** ✅ hotovo
+
+**Provedeno:**
+- Prozkoumána struktura složek a souborů projektu OpenNetLimit.
+- Zjištěny projekty v řešení: `OpenNetLimit.Core`, `OpenNetLimit.Engine`, `OpenNetLimit.Service`, `OpenNetLimit.UI`, `OpenNetLimit.CLI`, `OpenNetLimit.Tests`.
+- Sestaven inventář souborů k **ODEJÍT** a **PONEHAT** pro Fázi 2 (Osekání na MVP).
+
+**Build/test:** `dotnet build` → OK (beze zmen), `dotnet test` → OK (166 testů).
+
+**Pozorování / problémy:**
+- **Soubory a moduly k odstranění (ODEJÍT):**
+  - REST API: `OpenNetLimit.Service/API/*` (`RestApiServer`, `RestApiRouter`, `RestApiOptions`, `RestApiRequest`, `RestApiResponse`, `ProtectedKeyStore`) + `RestApiRouterTests`.
+  - Plugin webhooks: `OpenNetLimit.Service/Plugins/*` (`PluginManager`, `PluginOptions`), `PluginManifest.cs` + `PluginManagerTests`.
+  - GeoIP: `OpenNetLimit.Service/Geo/*` (`FreeIpApiGeoIpResolver`, `GeoIpOptions`, `IGeoIpResolver`), `GeoIpInfo.cs` + `GeoIpResolverTests`.
+  - VirusTotal: `OpenNetLimit.Service/Security/*` (`VirusTotalVerifier`, `VirusTotalOptions`, `IProcessVerifier`), `ProcessVerificationInfo.cs` + `VirusTotalVerifierTests`.
+  - Quotas: `OpenNetLimit.Engine/Rules/QuotaTracker.cs` + `QuotaTrackerTests`.
+  - Alerts: `OpenNetLimit.Core/Models/BandwidthAlert.cs`, `OpenNetLimit.Engine/Rules/BandwidthAlertTracker.cs` + `BandwidthAlertTrackerTests`.
+  - Theming: `OpenNetLimit.UI/Services/ThemeManager.cs`.
+  - Localization: `OpenNetLimit.UI/Services/LocalizationManager.cs`, `Strings.resx`, `Strings.es.resx` + `LocalizationManagerTests`.
+  - Rule Scheduling: testy `RuleScheduleTests.cs` a schedulační vlastnosti v `BandwidthRule.cs`.
+- **Soubory k zachování (PONEHAT):**
+  - Jádro zachytávání WinDivert (`WinDivertInterceptor`, `FlowTracker`), TokenBucket limiter, `RuleEngine`, `RuleReconciler`, SQLite `TrafficStatsDb`, `PipeServer`/`PipeClient`, WPF UI (`MainWindow`, `SetLimitDialog`, `MainViewModel`).
+
+**Další krok:** Fáze 2 – Osekání na MVP (§6).
+
+
 
