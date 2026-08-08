@@ -48,3 +48,23 @@ Průběžný stav projektu **InternetLimiter** – lokální aplikace typu NetLi
 
 **Další krok:** Čekám na uživatele: Prosíme o instalaci .NET 8 SDK (https://aka.ms/dotnet/download) a GitHub CLI (`gh`) včetně přihlášení (`gh auth login`). Po dokončení prosím potvrďte pokračování.
 
+---
+
+## 2026-08-09 01:45 - Fáze 0: Příprava repozitáře a výchozí build (§4)
+
+**Stav:** ✅ hotovo
+
+**Provedeno:**
+- Dokončena instalace prerekvizit (.NET 8 SDK 8.0.423, GitHub CLI v2.97.0).
+- Naklonován upstream `SysAdminDoc/OpenNetLimit` do dočasného adresáře a kód bez `.git` překopírován do pracovního adresáře.
+- Založena nová git historie (`git init -b main`) a vytvořen úvodní import commit.
+- Spuštěny příkazy `dotnet restore`, `dotnet build`, `dotnet test`.
+
+**Build/test:** `dotnet build` → OK (0 chyb, 0 varování), `dotnet test` → OK (166 testů prošlo).
+
+**Pozorování / problémy:**
+- Výchozí build a testy řešení OpenNetLimit.sln jsou 100% zelené.
+
+**Další krok:** Fáze 1 – Průzkum kódu a inventář (§5).
+
+
