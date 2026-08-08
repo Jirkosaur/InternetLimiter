@@ -3,9 +3,7 @@ using System.Security.Principal;
 using OpenNetLimit.Core.Interfaces;
 using OpenNetLimit.Core.IPC;
 using OpenNetLimit.Engine.Rules;
-using OpenNetLimit.Service.Control;
 using OpenNetLimit.Service.IPC;
-using OpenNetLimit.Service.Plugins;
 using OpenNetLimit.Service.Storage;
 
 namespace OpenNetLimit.Service;
@@ -18,28 +16,19 @@ public class EngineWorker : BackgroundService
     private readonly IFlowTracker _flowTracker;
     private readonly ITrafficMonitor _trafficMonitor;
     private readonly PipeServer _pipeServer;
-    private readonly BandwidthAlertTracker _alertTracker;
-    private readonly PluginManager _pluginManager;
-    private readonly ControlPlaneState _controlPlane;
     private readonly ILogger<EngineWorker> _logger;
     private readonly DateTime _startedAt = DateTime.UtcNow;
     private RuleReconciler? _reconciler;
-    private QuotaTracker? _quotaTracker;
     private TrafficStatsDb? _statsDb;
     private Timer? _statsTimer;
     private Timer? _purgeTimer;
     private Timer? _flowPurgeTimer;
-    private Timer? _quotaTimer;
-    private Timer? _quotaResetTimer;
-    private Timer? _alertTimer;
-    private long _lastQuotaResetCheckTicks = DateTime.Now.Date.Ticks;
 
     private static readonly string DataDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "OpenNetLimit");
 
     private static readonly string RulesPath = Path.Combine(DataDir, "rules.json");
-    private static readonly string AlertsPath = Path.Combine(DataDir, "alerts.json");
     private static readonly string StatsDbPath = Path.Combine(DataDir, "traffic.db");
     private static readonly string LastErrorPath = Path.Combine(DataDir, "last-error.txt");
 
@@ -50,9 +39,6 @@ public class EngineWorker : BackgroundService
         IFlowTracker flowTracker,
         ITrafficMonitor trafficMonitor,
         PipeServer pipeServer,
-        BandwidthAlertTracker alertTracker,
-        PluginManager pluginManager,
-        ControlPlaneState controlPlane,
         ILogger<EngineWorker> logger)
     {
         _interceptor = interceptor;
@@ -61,16 +47,12 @@ public class EngineWorker : BackgroundService
         _flowTracker = flowTracker;
         _trafficMonitor = trafficMonitor;
         _pipeServer = pipeServer;
-        _alertTracker = alertTracker;
-        _pluginManager = pluginManager;
-        _controlPlane = controlPlane;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("OpenNetLimit engine starting");
-        _controlPlane.DiagnosticProvider = GetDiagnosticInfo;
 
         if (!ValidatePrerequisites())
         {
@@ -91,59 +73,7 @@ public class EngineWorker : BackgroundService
             };
         }
 
-        _quotaTracker = new QuotaTracker(_ruleEngine, _trafficMonitor);
-        _quotaTracker.OnQuotaWarning += (name, state) =>
-        {
-            _logger.LogWarning("Quota warning for {Process}: {Percent}% used ({Used}/{Limit} bytes)",
-                name, state.PercentUsed, state.UsedBytes, state.LimitBytes);
-            DispatchPluginEvent("quota.warning", state, stoppingToken);
-        };
-        _quotaTracker.OnQuotaExceeded += (name, state) =>
-        {
-            _logger.LogWarning("Quota exceeded for {Process}: {Used}/{Limit} bytes — action: {Action}",
-                name, state.UsedBytes, state.LimitBytes, state.Action);
-            DispatchPluginEvent("quota.exceeded", state, stoppingToken);
-
-            // Enforce the configured quota action
-            switch (state.Action)
-            {
-                case OpenNetLimit.Core.Models.QuotaAction.Throttle:
-                    var rule = _ruleEngine.GetAllRules()
-                        .FirstOrDefault(r => r.ProcessName?.Equals(name, StringComparison.OrdinalIgnoreCase) == true && r.Quota is not null);
-                    if (rule?.Quota is not null)
-                    {
-                        var throttleRate = rule.Quota.ThrottleBytesPerSecond;
-                        foreach (var proc in _trafficMonitor.GetAllProcesses()
-                            .Where(p => rule.MatchesProcess(p.ProcessName, p.ProcessPath)))
-                        {
-                            _rateLimiter.SetLimit(proc.ProcessId, throttleRate, throttleRate);
-                        }
-                        _logger.LogInformation("Quota throttle applied for {Process}: {Rate} B/s", name, throttleRate);
-                    }
-                    break;
-
-                case OpenNetLimit.Core.Models.QuotaAction.Block:
-                    foreach (var proc in _trafficMonitor.GetAllProcesses()
-                        .Where(p => p.ProcessName.Equals(name, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        _rateLimiter.SetLimit(proc.ProcessId, 0, 0);
-                    }
-                    _logger.LogInformation("Quota block applied for {Process}: traffic dropped", name);
-                    break;
-
-                case OpenNetLimit.Core.Models.QuotaAction.WarnOnly:
-                    break;
-            }
-        };
-        _alertTracker.OnAlert += alert =>
-        {
-            _logger.LogWarning("Bandwidth alert: {Message}", alert.Message);
-            DispatchPluginEvent("alert.triggered", alert, stoppingToken);
-        };
-
         LoadRules();
-        LoadAlerts();
-        LoadPlugins();
         _reconciler.Reconcile();
 
         try
@@ -159,9 +89,7 @@ public class EngineWorker : BackgroundService
                        "  - WinDivert driver not found or inaccessible\n" +
                        "  - HVCI (Memory Integrity) is enabled and blocking the driver\n" +
                        "  - Antivirus/EDR is blocking WinDivert64.sys\n" +
-                       "  - Windows kernel driver signing policy may reject cross-signed drivers (Windows 11 24H2+)\n" +
                        "  - Service is not running with administrator privileges\n" +
-                       "See: https://github.com/basil00/WinDivert/issues/397\n" +
                        $"Error: {ex.Message}";
             RecordLastError(hint);
             _logger.LogCritical(ex, "Failed to start packet interceptor — check {ErrorFile} for troubleshooting steps", LastErrorPath);
@@ -173,7 +101,6 @@ public class EngineWorker : BackgroundService
             _statsDb = new TrafficStatsDb(StatsDbPath);
             _statsTimer = new Timer(_ => RecordStats(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             _purgeTimer = new Timer(_ => _statsDb.PurgeOlderThan(90), null, TimeSpan.FromHours(1), TimeSpan.FromHours(24));
-            _controlPlane.StatsProvider = _statsDb;
             _logger.LogInformation("Traffic statistics database initialized at {Path}", StatsDbPath);
         }
         catch (Exception ex)
@@ -182,12 +109,7 @@ public class EngineWorker : BackgroundService
         }
 
         _flowPurgeTimer = new Timer(_ => PurgeStaleFlows(), null, TimeSpan.FromMinutes(5), TimeSpan.FromMinutes(5));
-        _quotaTimer = new Timer(_ => _quotaTracker?.Update(), null, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
-        _quotaResetTimer = new Timer(_ => CheckQuotaResets(), null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
-        _alertTimer = new Timer(_ => _alertTracker.Update(), null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
-        _controlPlane.QuotaTracker = _quotaTracker;
-        _controlPlane.ConnectionLogProvider = () => _interceptor.GetRecentConnectionLog(100);
         _ = Task.Run(() => RunPipeServer(stoppingToken), stoppingToken);
         _logger.LogInformation("IPC pipe server started");
 
@@ -239,11 +161,7 @@ public class EngineWorker : BackgroundService
                 using var cert = new X509Certificate2(baseCert);
                 if (cert.NotAfter < DateTime.Now)
                 {
-                    _logger.LogWarning(
-                        "WinDivert driver signature EXPIRED on {ExpiryDate}. " +
-                        "Windows 11 24H2+ may reject this driver under the cross-signed driver deprecation policy. " +
-                        "See: https://github.com/basil00/WinDivert/issues/397",
-                        cert.NotAfter);
+                    _logger.LogWarning("WinDivert driver signature EXPIRED on {ExpiryDate}.", cert.NotAfter);
                 }
                 else
                 {
@@ -252,11 +170,7 @@ public class EngineWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
-                    "Could not verify WinDivert driver signature. " +
-                    "If the driver is unsigned or has an expired certificate, " +
-                    "it may be blocked on Windows 11 24H2+. " +
-                    "See: https://github.com/basil00/WinDivert/issues/397");
+                _logger.LogWarning(ex, "Could not verify WinDivert driver signature.");
             }
         }
         catch (Exception ex)
@@ -312,94 +226,6 @@ public class EngineWorker : BackgroundService
         }
     }
 
-    private void LoadAlerts()
-    {
-        try
-        {
-            _alertTracker.LoadRules(AlertsPath);
-            _logger.LogInformation("Loaded {Count} alert rules from {Path}",
-                _alertTracker.GetRules().Count, AlertsPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load alert rules from {Path} — starting with empty alert set", AlertsPath);
-            RecordLastError($"Failed to load alert rules: {ex.Message}");
-        }
-    }
-
-    private void SaveAlerts()
-    {
-        try
-        {
-            _alertTracker.SaveRules(AlertsPath);
-            _logger.LogInformation("Saved alert rules to {Path}", AlertsPath);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save alert rules to {Path}", AlertsPath);
-        }
-    }
-
-    private void LoadPlugins()
-    {
-        try
-        {
-            var plugins = _pluginManager.Reload();
-            _logger.LogInformation("Loaded {Count} plugins", plugins.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load plugins");
-            RecordLastError($"Failed to load plugins: {ex.Message}");
-        }
-    }
-
-    private void DispatchPluginEvent(string eventType, object payload, CancellationToken ct)
-    {
-        _ = Task.Run(async () =>
-        {
-            try { await _pluginManager.DispatchAsync(eventType, payload, ct); }
-            catch (OperationCanceledException) { }
-        }, CancellationToken.None);
-    }
-
-    private void CheckQuotaResets()
-    {
-        try
-        {
-            var now = DateTime.Now;
-            var today = now.Date;
-
-            var lastCheck = new DateTime(Interlocked.Read(ref _lastQuotaResetCheckTicks));
-            if (today <= lastCheck)
-                return;
-
-            _quotaTracker?.ResetPeriod(OpenNetLimit.Core.Models.QuotaPeriod.Daily);
-            _logger.LogInformation("Daily quota period reset");
-
-            if (today.DayOfWeek == DayOfWeek.Monday)
-            {
-                _quotaTracker?.ResetPeriod(OpenNetLimit.Core.Models.QuotaPeriod.Weekly);
-                _logger.LogInformation("Weekly quota period reset");
-            }
-
-            if (today.Day == 1)
-            {
-                _quotaTracker?.ResetPeriod(OpenNetLimit.Core.Models.QuotaPeriod.Monthly);
-                _logger.LogInformation("Monthly quota period reset");
-            }
-
-            // Revert any quota-imposed rate limits by reconciling with base rules
-            _reconciler?.Reconcile();
-
-            Interlocked.Exchange(ref _lastQuotaResetCheckTicks, today.Ticks);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to check quota resets");
-        }
-    }
-
     private void PurgeStaleFlows()
     {
         try
@@ -427,9 +253,6 @@ public class EngineWorker : BackgroundService
 
     private async Task ShutdownGracefully()
     {
-        _quotaTimer?.Dispose();
-        _quotaResetTimer?.Dispose();
-        _alertTimer?.Dispose();
         _statsTimer?.Dispose();
         _purgeTimer?.Dispose();
         _flowPurgeTimer?.Dispose();
@@ -444,7 +267,6 @@ public class EngineWorker : BackgroundService
         }
 
         SaveRules();
-        SaveAlerts();
         _statsDb?.Dispose();
         _logger.LogInformation("OpenNetLimit engine stopped");
     }

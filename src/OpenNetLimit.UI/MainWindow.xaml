@@ -2,8 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-        xmlns:loc="clr-namespace:OpenNetLimit.UI.Services"
-        Title="{loc:Loc Main_WindowTitle}" Height="700" Width="900"
+        Title="InternetLimiter" Height="700" Width="900"
         WindowStartupLocation="CenterScreen"
         KeyboardNavigation.TabNavigation="Cycle">
     <Grid Margin="12" Background="{DynamicResource WindowBackgroundBrush}">
@@ -15,8 +14,8 @@
 
         <!-- Header -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8"
-                    AutomationProperties.Name="{loc:Loc ServiceStatus_Automation}">
-            <TextBlock Text="{loc:Loc Main_Title}" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
+                    AutomationProperties.Name="Service Status">
+            <TextBlock Text="InternetLimiter" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"/>
             <Ellipse Width="10" Height="10" Margin="12,0,4,0"
                      Fill="{Binding StatusColor}" VerticalAlignment="Center"
                      AutomationProperties.Name="{Binding StatusText}"/>
@@ -27,7 +26,7 @@
         <!-- Tab Control -->
         <TabControl Grid.Row="1" SelectionChanged="OnTabChanged">
             <!-- Real-time Tab -->
-            <TabItem Header="{loc:Loc Tab_Realtime}">
+            <TabItem Header="Real-time">
                 <Grid Margin="0,8,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -37,14 +36,14 @@
 
                     <!-- Summary -->
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8"
-                                AutomationProperties.Name="{loc:Loc TrafficSummary_Automation}">
+                                AutomationProperties.Name="Traffic Summary">
                         <TextBlock Margin="0,0,24,0"
                                    AutomationProperties.Name="{Binding TotalDownload, StringFormat='Download speed: {0}'}">
-                            <Run Text="{loc:Loc Label_Download}" Foreground="{DynamicResource MutedTextBrush}"/>
+                            <Run Text="Download: " Foreground="{DynamicResource MutedTextBrush}"/>
                             <Run Text="{Binding TotalDownload, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource DownloadBrush}"/>
                         </TextBlock>
                         <TextBlock AutomationProperties.Name="{Binding TotalUpload, StringFormat='Upload speed: {0}'}">
-                            <Run Text="{loc:Loc Label_Upload}" Foreground="{DynamicResource MutedTextBrush}"/>
+                            <Run Text="Upload: " Foreground="{DynamicResource MutedTextBrush}"/>
                             <Run Text="{Binding TotalUpload, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource UploadBrush}"/>
                         </TextBlock>
                     </StackPanel>
@@ -55,36 +54,36 @@
                                         YAxes="{Binding ChartYAxes}"
                                         XAxes="{Binding ChartXAxes}"
                                         AnimationsSpeed="00:00:00.200"
-                                        AutomationProperties.Name="{loc:Loc Chart_Automation}"/>
+                                        AutomationProperties.Name="Traffic Chart"/>
 
                     <!-- Process list -->
                     <DataGrid Grid.Row="2" x:Name="ProcessGrid" ItemsSource="{Binding Processes}" Style="{StaticResource DataGridStyle}"
-                              AutomationProperties.Name="{loc:Loc ProcessGrid_Automation}">
+                              AutomationProperties.Name="Process Grid">
                         <DataGrid.ContextMenu>
                             <ContextMenu>
-                                <MenuItem Header="{loc:Loc Menu_SetBandwidthLimit}" Click="OnSetLimit" IsEnabled="{Binding IsAdmin}"
+                                <MenuItem Header="Set Bandwidth Limit..." Click="OnSetLimit" IsEnabled="{Binding IsAdmin}"
                                           ToolTipService.ShowOnDisabled="True"
-                                          ToolTip="{loc:Loc Menu_AdminRequired}"/>
-                                <MenuItem Header="{loc:Loc Menu_RemoveLimit}" Click="OnRemoveLimit" IsEnabled="{Binding IsAdmin}"
+                                          ToolTip="Administrator privileges required"/>
+                                <MenuItem Header="Remove Limit" Click="OnRemoveLimit" IsEnabled="{Binding IsAdmin}"
                                           ToolTipService.ShowOnDisabled="True"
-                                          ToolTip="{loc:Loc Menu_AdminRequired}"/>
+                                          ToolTip="Administrator privileges required"/>
                             </ContextMenu>
                         </DataGrid.ContextMenu>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="{loc:Loc Column_Process}" Binding="{Binding ProcessName}" Width="2*"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_PID}" Binding="{Binding ProcessId}" Width="Auto"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_DownloadPerSecond}" Binding="{Binding DownloadDisplay}" Width="*"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_UploadPerSecond}" Binding="{Binding UploadDisplay}" Width="*"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_TotalDown}" Binding="{Binding TotalDownDisplay}" Width="*"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_TotalUp}" Binding="{Binding TotalUpDisplay}" Width="*"/>
-                            <DataGridTextColumn Header="{loc:Loc Column_Limit}" Binding="{Binding LimitDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Process" Binding="{Binding ProcessName}" Width="2*"/>
+                            <DataGridTextColumn Header="PID" Binding="{Binding ProcessId}" Width="Auto"/>
+                            <DataGridTextColumn Header="Download/s" Binding="{Binding DownloadDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Upload/s" Binding="{Binding UploadDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Total Down" Binding="{Binding TotalDownDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Total Up" Binding="{Binding TotalUpDisplay}" Width="*"/>
+                            <DataGridTextColumn Header="Limit" Binding="{Binding LimitDisplay}" Width="*"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </Grid>
             </TabItem>
 
             <!-- History Tab -->
-            <TabItem Header="{loc:Loc Tab_History}" x:Name="HistoryTab">
+            <TabItem Header="History" x:Name="HistoryTab">
                 <Grid Margin="0,8,0,0" DataContext="{Binding HistoryViewModel}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -95,12 +94,12 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                         <ComboBox ItemsSource="{Binding ProcessNames}" SelectedItem="{Binding SelectedProcess}"
                                   MinWidth="180" Margin="0,0,12,0"/>
-                        <RadioButton Content="{loc:Loc History_Hourly}" IsChecked="{Binding IsHourly}"
+                        <RadioButton Content="Hourly" IsChecked="{Binding IsHourly}"
                                      VerticalAlignment="Center" Margin="0,0,12,0" GroupName="HistoryGranularity"/>
-                        <RadioButton Content="{loc:Loc History_Daily}" IsChecked="{Binding IsDaily}"
+                        <RadioButton Content="Daily" IsChecked="{Binding IsDaily}"
                                      VerticalAlignment="Center" Margin="0,0,12,0"
                                      GroupName="HistoryGranularity"/>
-                        <Button Content="{loc:Loc History_Refresh}" Click="OnHistoryRefresh" MinWidth="80"/>
+                        <Button Content="Refresh" Click="OnHistoryRefresh" MinWidth="80"/>
                     </StackPanel>
 
                     <!-- History chart -->
@@ -109,14 +108,14 @@
                                         YAxes="{Binding HistoryYAxes}"
                                         XAxes="{Binding HistoryXAxes}"
                                         AnimationsSpeed="00:00:00.300"
-                                        AutomationProperties.Name="{loc:Loc History_Automation}"/>
+                                        AutomationProperties.Name="History Chart"/>
                 </Grid>
             </TabItem>
         </TabControl>
 
         <!-- Status bar -->
         <StatusBar Grid.Row="2" Margin="0,8,0,0"
-                   AutomationProperties.Name="{loc:Loc StatusBar_Automation}">
+                   AutomationProperties.Name="Status Bar">
             <StatusBarItem AutomationProperties.Name="{Binding ConnectionsDisplay}">
                 <TextBlock Text="{Binding ConnectionsDisplay}"/>
             </StatusBarItem>
@@ -124,21 +123,8 @@
             <StatusBarItem AutomationProperties.Name="{Binding ActiveRulesDisplay}">
                 <TextBlock Text="{Binding ActiveRulesDisplay}"/>
             </StatusBarItem>
-            <Separator/>
-            <StatusBarItem AutomationProperties.Name="{Binding RecentAlertsDisplay}">
-                <TextBlock Text="{Binding RecentAlertsDisplay}"/>
-            </StatusBarItem>
-            <Separator/>
             <StatusBarItem AutomationProperties.Name="{Binding PermissionModeDisplay}">
                 <TextBlock Text="{Binding PermissionModeDisplay}"/>
-            </StatusBarItem>
-            <Separator/>
-            <StatusBarItem AutomationProperties.Name="{Binding ThemeDisplay, StringFormat='Current {0}'}">
-                <Button Content="{Binding ThemeDisplay}" MinWidth="96" Click="OnToggleTheme"/>
-            </StatusBarItem>
-            <Separator/>
-            <StatusBarItem AutomationProperties.Name="{Binding LanguageDisplay}">
-                <Button Content="{Binding LanguageDisplay}" MinWidth="108" Click="OnToggleLanguage"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

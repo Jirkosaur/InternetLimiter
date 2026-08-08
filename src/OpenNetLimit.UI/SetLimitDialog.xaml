@@ -1,8 +1,7 @@
 <Window x:Class="OpenNetLimit.UI.SetLimitDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:loc="clr-namespace:OpenNetLimit.UI.Services"
-        Title="{loc:Loc SetLimit_Title}" Height="240" Width="360"
+        Title="Set Bandwidth Limit" Height="240" Width="360"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         WindowStyle="ToolWindow">
     <Grid Margin="16" Background="{DynamicResource WindowBackgroundBrush}">
@@ -25,29 +24,29 @@
                    Text="{Binding ProcessLabel}"
                    FontWeight="SemiBold"/>
 
-        <TextBlock Grid.Row="1" Grid.Column="0" Text="{loc:Loc SetLimit_DownloadLabel}" VerticalAlignment="Center" Margin="0,0,8,4"/>
+        <TextBlock Grid.Row="1" Grid.Column="0" Text="Download Limit:" VerticalAlignment="Center" Margin="0,0,8,4"/>
         <TextBox Grid.Row="1" Grid.Column="1" x:Name="DownloadBox" Text="0" Margin="0,0,4,4"
-                 AutomationProperties.Name="{loc:Loc SetLimit_DownloadAutomation}"
+                 AutomationProperties.Name="Download limit KB/s"
                  TextChanged="OnInputChanged"/>
-        <TextBlock Grid.Row="1" Grid.Column="2" Text="{loc:Loc RateUnit_Kbps}" VerticalAlignment="Center" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="1" Grid.Column="2" Text="KB/s" VerticalAlignment="Center" Margin="0,0,0,4"/>
 
-        <TextBlock Grid.Row="2" Grid.Column="0" Text="{loc:Loc SetLimit_UploadLabel}" VerticalAlignment="Center" Margin="0,0,8,4"/>
+        <TextBlock Grid.Row="2" Grid.Column="0" Text="Upload Limit:" VerticalAlignment="Center" Margin="0,0,8,4"/>
         <TextBox Grid.Row="2" Grid.Column="1" x:Name="UploadBox" Text="0" Margin="0,0,4,4"
-                 AutomationProperties.Name="{loc:Loc SetLimit_UploadAutomation}"
+                 AutomationProperties.Name="Upload limit KB/s"
                  TextChanged="OnInputChanged"/>
-        <TextBlock Grid.Row="2" Grid.Column="2" Text="{loc:Loc RateUnit_Kbps}" VerticalAlignment="Center" Margin="0,0,0,4"/>
+        <TextBlock Grid.Row="2" Grid.Column="2" Text="KB/s" VerticalAlignment="Center" Margin="0,0,0,4"/>
 
-        <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Text="{loc:Loc SetLimit_ZeroHint}" Foreground="{DynamicResource MutedTextBrush}" Margin="0,4,0,0" FontSize="11"/>
+        <TextBlock Grid.Row="3" Grid.ColumnSpan="3" Text="Set 0 for unlimited bandwidth" Foreground="{DynamicResource MutedTextBrush}" Margin="0,4,0,0" FontSize="11"/>
 
         <TextBlock Grid.Row="4" Grid.ColumnSpan="3" x:Name="ErrorText"
-                   Text="{loc:Loc SetLimit_InvalidMessage}"
+                   Text="Invalid limit value"
                    Foreground="#E53935" FontSize="11" Margin="0,4,0,0"
                    Visibility="Collapsed"
                    AutomationProperties.LiveSetting="Assertive"/>
 
         <StackPanel Grid.Row="6" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right">
-            <Button Content="{loc:Loc Action_Ok}" Width="80" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>
-            <Button Content="{loc:Loc Action_Cancel}" Width="80" IsCancel="True"/>
+            <Button Content="OK" Width="80" Margin="0,0,8,0" IsDefault="True" Click="OnOk"/>
+            <Button Content="Cancel" Width="80" IsCancel="True"/>
         </StackPanel>
     </Grid>
 </Window>

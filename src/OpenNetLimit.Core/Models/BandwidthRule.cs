@@ -41,10 +41,6 @@ public class BandwidthRule
     public DateTime? ActiveFrom { get; set; }
     public DateTime? ActiveUntil { get; set; }
 
-    public RuleSchedule? Schedule { get; set; }
-
-    public QuotaConfig? Quota { get; set; }
-
     public string? ProfileName { get; set; }
 
     public string? GroupName { get; set; }
@@ -172,20 +168,6 @@ public class BandwidthRule
         DnsDomainFilter = DnsDomainFilter,
         ActiveFrom = ActiveFrom,
         ActiveUntil = ActiveUntil,
-        Schedule = Schedule is null ? null : new RuleSchedule
-        {
-            StartTime = Schedule.StartTime,
-            EndTime = Schedule.EndTime,
-            ActiveDays = Schedule.ActiveDays?.ToArray()
-        },
-        Quota = Quota is null ? null : new QuotaConfig
-        {
-            LimitBytes = Quota.LimitBytes,
-            Period = Quota.Period,
-            OnExceeded = Quota.OnExceeded,
-            ThrottleBytesPerSecond = Quota.ThrottleBytesPerSecond,
-            WarningPercent = Quota.WarningPercent
-        },
         ProfileName = ProfileName,
         GroupName = GroupName,
         Priority = Priority
@@ -197,55 +179,6 @@ public class BandwidthRule
         var now = DateTime.UtcNow;
         if (ActiveFrom.HasValue && now < ActiveFrom.Value) return false;
         if (ActiveUntil.HasValue && now > ActiveUntil.Value) return false;
-        if (Schedule is not null && !Schedule.IsActiveAt(now)) return false;
-        return true;
-    }
-}
-
-public enum QuotaPeriod
-{
-    Daily,
-    Weekly,
-    Monthly
-}
-
-public enum QuotaAction
-{
-    Throttle,
-    Block,
-    WarnOnly
-}
-
-public class QuotaConfig
-{
-    public long LimitBytes { get; set; }
-    public QuotaPeriod Period { get; set; } = QuotaPeriod.Daily;
-    public QuotaAction OnExceeded { get; set; } = QuotaAction.Throttle;
-    public long ThrottleBytesPerSecond { get; set; } = 10 * 1024;
-    public int WarningPercent { get; set; } = 80;
-}
-
-public class RuleSchedule
-{
-    public TimeOnly? StartTime { get; set; }
-    public TimeOnly? EndTime { get; set; }
-    public DayOfWeek[]? ActiveDays { get; set; }
-
-    public bool IsActiveAt(DateTime utcNow)
-    {
-        var localNow = utcNow.Kind == DateTimeKind.Utc ? utcNow.ToLocalTime() : utcNow;
-
-        if (ActiveDays is { Length: > 0 } && !ActiveDays.Contains(localNow.DayOfWeek))
-            return false;
-
-        if (StartTime.HasValue && EndTime.HasValue)
-        {
-            var timeNow = TimeOnly.FromDateTime(localNow);
-            if (StartTime.Value <= EndTime.Value)
-                return timeNow >= StartTime.Value && timeNow <= EndTime.Value;
-            return timeNow >= StartTime.Value || timeNow <= EndTime.Value;
-        }
-
         return true;
     }
 }

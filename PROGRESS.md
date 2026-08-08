@@ -96,5 +96,34 @@ Průběžný stav projektu **InternetLimiter** – lokální aplikace typu NetLi
 
 **Další krok:** Fáze 2 – Osekání na MVP (§6).
 
+---
+
+## 2026-08-09 01:55 - Fáze 2: Osekání na MVP (§6)
+
+**Stav:** ✅ hotovo
+
+**Provedeno:**
+- Odstraněny všechny moduly a soubory ze seznamu ODEJÍT:
+  - REST API & remote management (`RestApiServer`, `RestApiRouter`, `ProtectedKeyStore`, options).
+  - Plugin webhooks (`PluginManager`, `PluginOptions`, `PluginManifest`).
+  - GeoIP lookup (`FreeIpApiGeoIpResolver`, `GeoIpOptions`, `IGeoIpResolver`, `GeoIpInfo`).
+  - VirusTotal executable verification (`VirusTotalVerifier`, `VirusTotalOptions`, `IProcessVerifier`, `ProcessVerificationInfo`).
+  - Quotas (`QuotaTracker`, `QuotaConfig`, reset timery).
+  - Bandwidth Alerts (`BandwidthAlertTracker`, `BandwidthAlertEvent`, alert timery).
+  - Rule Scheduling (`RuleSchedule`, schedule testy, schedulační filtry).
+  - Theming (`ThemeManager`, `AppTheme`).
+  - Localization (`LocalizationManager`, `.resx` soubory, markup extension `{loc:Loc}`).
+  - SetupWizard a ControlPlaneState.
+- Všechny závislosti a odkazované typy v UI a Service byly vyčištěny.
+- Zachována veškerá funkcionalita jádra: monitoring per-aplikace, down/up limitování, blokování, ukládání pravidel v JSON, SQLite statistiky, named pipe IPC, WPF rozhraní + systémová lišta (tray).
+
+**Build/test:** `dotnet build` → OK (0 chyb, 0 varování), `dotnet test` → OK (108 testů prošlo).
+
+**Pozorování / problémy:**
+- Projekt byl úspěšně zredukován na štíhlé MVP jádro.
+
+**Další krok:** Fáze 3 – Ověření funkčnosti / spouštění (§7).
+
+
 
 

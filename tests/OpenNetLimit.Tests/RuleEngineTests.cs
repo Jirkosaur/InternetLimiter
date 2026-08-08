@@ -138,50 +138,6 @@ public class RuleEngineTests
     }
 
     [Fact]
-    public void Schedule_TimeWindow_InsideIsActive()
-    {
-        var rule = new BandwidthRule
-        {
-            ProcessName = "chrome",
-            Schedule = new RuleSchedule
-            {
-                StartTime = new TimeOnly(0, 0),
-                EndTime = new TimeOnly(23, 59)
-            }
-        };
-        Assert.True(rule.IsActiveNow());
-    }
-
-    [Fact]
-    public void Schedule_DayOfWeek_TodayIsActive()
-    {
-        var rule = new BandwidthRule
-        {
-            ProcessName = "chrome",
-            Schedule = new RuleSchedule
-            {
-                ActiveDays = [DateTime.Now.DayOfWeek]
-            }
-        };
-        Assert.True(rule.IsActiveNow());
-    }
-
-    [Fact]
-    public void Schedule_WrongDay_IsInactive()
-    {
-        var wrongDay = (DayOfWeek)(((int)DateTime.Now.DayOfWeek + 1) % 7);
-        var rule = new BandwidthRule
-        {
-            ProcessName = "chrome",
-            Schedule = new RuleSchedule
-            {
-                ActiveDays = [wrongDay]
-            }
-        };
-        Assert.False(rule.IsActiveNow());
-    }
-
-    [Fact]
     public void ExportImport_RoundTrips()
     {
         var engine = new RuleEngine();

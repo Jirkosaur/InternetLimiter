@@ -31,7 +31,7 @@ public class HistoryViewModel : INotifyPropertyChanged
     [
         new Axis
         {
-            Name = LocalizationManager.Text("History_Bytes"),
+            Name = "Bytes",
             MinLimit = 0,
             Labeler = v => FormatMB(v)
         }
@@ -92,14 +92,14 @@ public class HistoryViewModel : INotifyPropertyChanged
             new ColumnSeries<ObservableValue>
             {
                 Values = _receivedPoints,
-                Name = LocalizationManager.Text("History_Received"),
+                Name = "Received",
                 Fill = new SolidColorPaint(new SKColor(0x21, 0x96, 0xF3, 0xCC)),
                 MaxBarWidth = 20
             },
             new ColumnSeries<ObservableValue>
             {
                 Values = _sentPoints,
-                Name = LocalizationManager.Text("History_Sent"),
+                Name = "Sent",
                 Fill = new SolidColorPaint(new SKColor(0x4C, 0xAF, 0x50, 0xCC)),
                 MaxBarWidth = 20
             }

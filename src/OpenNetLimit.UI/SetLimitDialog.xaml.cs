@@ -1,7 +1,6 @@
 using System.Windows;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using OpenNetLimit.UI.Services;
 using WpfBrush = System.Windows.Media.Brush;
 using WpfColor = System.Windows.Media.Color;
 using WpfTextBox = System.Windows.Controls.TextBox;
@@ -26,7 +25,7 @@ public partial class SetLimitDialog : Window, INotifyPropertyChanged
         }
     }
 
-    public string ProcessLabel => LocalizationManager.Format("SetLimit_ProcessLabel", ProcessName);
+    public string ProcessLabel => $"Process: {ProcessName}";
 
     public long DownloadKBps { get; private set; }
     public long UploadKBps { get; private set; }
