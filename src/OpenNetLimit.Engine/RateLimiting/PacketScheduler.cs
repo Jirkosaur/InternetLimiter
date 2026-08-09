@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using SharpDivert;
 
 namespace OpenNetLimit.Engine.RateLimiting;
@@ -6,13 +7,14 @@ namespace OpenNetLimit.Engine.RateLimiting;
 public sealed class PacketScheduler : IDisposable
 {
     private readonly ConcurrentDictionary<uint, ProcessPacketQueue> _queues = new();
-    private readonly Timer _drainTimer;
+    private readonly CancellationTokenSource _cts = new();
+    private readonly Thread _drainThread;
     private readonly object _sendLock = new();
     private WinDivert? _handle;
     private int _disposed;
 
-    public const int MaxQueuePerProcess = 512;
-    public static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(2);
+    public const int MaxQueuePerProcess = 1024;
+    public static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(5);
 
     private long _totalDelayed;
     private long _totalDropped;
@@ -22,15 +24,27 @@ public sealed class PacketScheduler : IDisposable
     public long TotalDropped => Volatile.Read(ref _totalDropped);
     public long TotalSent => Volatile.Read(ref _totalSent);
 
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    private static extern uint TimeBeginPeriod(uint uMilliseconds);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    private static extern uint TimeEndPeriod(uint uMilliseconds);
+
     public PacketScheduler()
     {
-        _drainTimer = new Timer(DrainReady, null, Timeout.Infinite, Timeout.Infinite);
+        try { TimeBeginPeriod(1); } catch { }
+        _drainThread = new Thread(DrainLoop)
+        {
+            IsBackground = true,
+            Name = "PacketSchedulerDrainThread",
+            Priority = ThreadPriority.Highest
+        };
+        _drainThread.Start();
     }
 
     public void SetHandle(WinDivert handle)
     {
         _handle = handle;
-        _drainTimer.Change(1, 1);
     }
 
     public void Enqueue(uint processId, ReadOnlySpan<byte> packetData, ReadOnlySpan<WinDivertAddress> addr, TimeSpan delay)
@@ -58,46 +72,52 @@ public sealed class PacketScheduler : IDisposable
         Interlocked.Increment(ref _totalDelayed);
     }
 
-    private void DrainReady(object? state)
+    private void DrainLoop()
     {
-        if (_handle is null || Volatile.Read(ref _disposed) != 0)
-            return;
+        Span<WinDivertAddress> addrSpan = stackalloc WinDivertAddress[1];
 
-        if (!Monitor.TryEnter(_sendLock))
-            return;
-
-        try
+        while (!_cts.IsCancellationRequested)
         {
-            long now = Environment.TickCount64;
-
-            Span<WinDivertAddress> addrSpan = stackalloc WinDivertAddress[1];
-            foreach (var (pid, queue) in _queues)
+            if (_handle is null || Volatile.Read(ref _disposed) != 0)
             {
-                while (queue.TryPeek(out var pkt) && pkt.SendAtTicks <= now)
+                Thread.Sleep(5);
+                continue;
+            }
+
+            long now = Environment.TickCount64;
+            bool hasMoreWork = false;
+
+            lock (_sendLock)
+            {
+                foreach (var (pid, queue) in _queues)
                 {
-                    if (queue.TryDequeue(out pkt))
+                    while (queue.TryPeek(out var pkt) && pkt.SendAtTicks <= now)
                     {
-                        try
+                        if (queue.TryDequeue(out pkt))
                         {
-                            addrSpan[0] = pkt.Address;
-                            _handle.SendEx(pkt.Data, addrSpan);
-                            Interlocked.Increment(ref _totalSent);
-                        }
-                        catch
-                        {
-                            Interlocked.Increment(ref _totalDropped);
+                            try
+                            {
+                                addrSpan[0] = pkt.Address;
+                                _handle.SendEx(pkt.Data, addrSpan);
+                                Interlocked.Increment(ref _totalSent);
+                                hasMoreWork = true;
+                            }
+                            catch
+                            {
+                                Interlocked.Increment(ref _totalDropped);
+                            }
                         }
                     }
-                }
 
-                // Prune empty queues idle for >5 minutes
-                if (queue.Count == 0 && now - Volatile.Read(ref queue.LastActivityTicks) > 300_000)
-                    _queues.TryRemove(pid, out _);
+                    if (queue.Count == 0 && now - Volatile.Read(ref queue.LastActivityTicks) > 300_000)
+                        _queues.TryRemove(pid, out _);
+                }
             }
-        }
-        finally
-        {
-            Monitor.Exit(_sendLock);
+
+            if (!hasMoreWork)
+            {
+                Thread.Sleep(1);
+            }
         }
     }
 
@@ -111,7 +131,8 @@ public sealed class PacketScheduler : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        _drainTimer.Dispose();
+        _cts.Cancel();
+        try { TimeEndPeriod(1); } catch { }
 
         lock (_sendLock)
         {
@@ -134,6 +155,7 @@ public sealed class PacketScheduler : IDisposable
         }
 
         _queues.Clear();
+        _cts.Dispose();
     }
 }
 
