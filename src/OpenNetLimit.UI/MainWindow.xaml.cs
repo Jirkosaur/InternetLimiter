@@ -50,12 +50,7 @@ public partial class MainWindow : Window
 
     private void OnStateChanged(object? sender, EventArgs e)
     {
-        if (WindowState == WindowState.Minimized)
-        {
-            Hide();
-            if (_trayIcon is not null)
-                _trayIcon.Visible = true;
-        }
+        // Keep window visible on Taskbar when minimized
     }
 
     private void RestoreFromTray()
