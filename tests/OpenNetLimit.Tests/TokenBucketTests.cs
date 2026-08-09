@@ -44,10 +44,17 @@ public class TokenBucketTests
     }
 
     [Fact]
-    public void Capacity_IsAtLeast64KB()
+    public void Capacity_LowLimit_UsesSmallFloor()
     {
-        var bucket = new TokenBucket(100);
-        Assert.True(bucket.CapacityBytes >= 65536);
+        var bucket = new TokenBucket(1024);
+        Assert.Equal(8192, bucket.CapacityBytes);
+    }
+
+    [Fact]
+    public void Capacity_LargeLimit_EqualsLimit()
+    {
+        var bucket = new TokenBucket(1_000_000);
+        Assert.Equal(1_000_000, bucket.CapacityBytes);
     }
 
     [Fact]
@@ -59,6 +66,28 @@ public class TokenBucketTests
         Thread.Sleep(50);
 
         Assert.True(bucket.AvailableTokens > 0);
+    }
+
+    [Fact]
+    public void TryConsume_WhenInsufficient_CarriesDeficit()
+    {
+        var bucket = new TokenBucket(1_000_000);
+        bucket.TryConsume((int)bucket.CapacityBytes);
+        double before = bucket.AvailableTokens;
+        bucket.TryConsume(100_000);
+        double after = bucket.AvailableTokens;
+        Assert.True(after < before - 50_000);
+    }
+
+    [Fact]
+    public void GetDelay_ReflectsCumulativeDeficit()
+    {
+        var bucket = new TokenBucket(1000);
+        bucket.TryConsume((int)bucket.CapacityBytes);
+        bucket.TryConsume(1000);
+        bucket.TryConsume(1000);
+        var delay = bucket.GetDelay(1000);
+        Assert.True(delay > TimeSpan.FromSeconds(2.9));
     }
 }
 

@@ -12,7 +12,7 @@ public class TokenBucket
     public TokenBucket(long bytesPerSecond)
     {
         RefillBytesPerSecond = bytesPerSecond;
-        CapacityBytes = Math.Max(bytesPerSecond, 65536);
+        CapacityBytes = Math.Max(bytesPerSecond, 8192);
         _tokens = CapacityBytes;
         _lastRefillTicks = Environment.TickCount64;
     }
@@ -27,6 +27,7 @@ public class TokenBucket
                 _tokens -= byteCount;
                 return true;
             }
+            _tokens -= byteCount;
             return false;
         }
     }

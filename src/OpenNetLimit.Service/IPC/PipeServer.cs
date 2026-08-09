@@ -7,6 +7,7 @@ using System.Text.Json;
 using OpenNetLimit.Core.Interfaces;
 using OpenNetLimit.Core.IPC;
 using OpenNetLimit.Core.Models;
+using OpenNetLimit.Engine.Rules;
 
 namespace OpenNetLimit.Service.IPC;
 
@@ -169,7 +170,7 @@ public class PipeServer
     {
         return action switch
         {
-            "SNAPSHOT" => Task.FromResult(JsonSerializer.Serialize(_trafficMonitor.TakeSnapshot(), JsonOptions)),
+            "SNAPSHOT" => Task.FromResult(BuildSnapshotJson()),
             "RULES" => Task.FromResult(JsonSerializer.Serialize(_ruleEngine.GetAllRules(), JsonOptions)),
             "PROCESSES" => Task.FromResult(JsonSerializer.Serialize(_trafficMonitor.GetAllProcesses(), JsonOptions)),
             "EXPORT_RULES" => Task.FromResult(_ruleEngine.ExportRules()),
@@ -181,6 +182,13 @@ public class PipeServer
             "IMPORT_RULES" => Task.FromResult(ImportRules(payload)),
             _ => Task.FromResult(ErrorResponse("unknown command"))
         };
+    }
+
+    private string BuildSnapshotJson()
+    {
+        var snapshot = _trafficMonitor.TakeSnapshot();
+        SnapshotLimitApplier.ApplyLimits(snapshot.Processes, _ruleEngine);
+        return JsonSerializer.Serialize(snapshot, JsonOptions);
     }
 
     private string AddRule(string payload)
