@@ -27,6 +27,7 @@ public class TokenBucket
                 _tokens -= byteCount;
                 return true;
             }
+            _tokens -= byteCount;
             return false;
         }
     }

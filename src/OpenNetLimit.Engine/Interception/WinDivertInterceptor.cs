@@ -280,22 +280,39 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 var resolvedDomain = _dnsCache.LookupDomain(remoteAddr);
                 var matchingRule = _ruleEngine.FindMatchingRule(processName, connection?.ProcessPath,
                     remoteAddr, remotePort, protocolStr, resolvedDomain: resolvedDomain);
-                if (matchingRule?.Action == RuleAction.Block && !ProtectedProcesses.Contains(processName))
+
+                if (matchingRule is not null && !ProtectedProcesses.Contains(processName) && matchingRule.IsActiveNow())
                 {
-                    Interlocked.Increment(ref _totalBlocked);
-                    continue;
+                    if (matchingRule.Action == RuleAction.Block)
+                    {
+                        Interlocked.Increment(ref _totalBlocked);
+                        continue;
+                    }
+
+                    if (matchingRule.Action == RuleAction.Limit)
+                    {
+                        long downLimit = matchingRule.Direction is RuleDirection.Both or RuleDirection.Download
+                            ? matchingRule.DownloadBytesPerSecond : 0;
+                        long upLimit = matchingRule.Direction is RuleDirection.Both or RuleDirection.Upload
+                            ? matchingRule.UploadBytesPerSecond : 0;
+
+                        if (downLimit > 0 || upLimit > 0)
+                        {
+                            _rateLimiter.SetLimit(processId.Value, downLimit, upLimit);
+                        }
+                    }
                 }
 
                 if (_rateLimiter.HasLimit(processId.Value) && !ProtectedProcesses.Contains(processName))
                 {
                     var delay = _rateLimiter.GetDelay(processId.Value, payloadLength, isOutbound);
-                    if (delay > TimeSpan.Zero)
+                    bool consumed = _rateLimiter.TryConsume(processId.Value, payloadLength, isOutbound);
+                    if (!consumed || delay > TimeSpan.Zero)
                     {
-                        _rateLimiter.TryConsume(processId.Value, payloadLength, isOutbound);
-                        _scheduler.Enqueue(processId.Value, packet.Span, addrBuffer.Span, delay);
+                        var effectiveDelay = delay > TimeSpan.Zero ? delay : TimeSpan.FromMilliseconds(5);
+                        _scheduler.Enqueue(processId.Value, packet.Span, addrBuffer.Span, effectiveDelay);
                         continue;
                     }
-                    _rateLimiter.TryConsume(processId.Value, payloadLength, isOutbound);
                 }
 
                 _networkHandle.SendEx(packet.Span, addrBuffer.Span);
