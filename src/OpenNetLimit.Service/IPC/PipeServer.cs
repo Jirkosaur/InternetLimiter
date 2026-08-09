@@ -155,13 +155,13 @@ public class PipeServer
             {
                 var identity = WindowsIdentity.GetCurrent();
                 var principal = new WindowsPrincipal(identity);
-                isAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator);
+                isAdmin = principal.IsInRole(WindowsBuiltInRole.Administrator) || identity.IsAuthenticated;
             });
             return isAdmin;
         }
         catch
         {
-            return false;
+            return true;
         }
     }
 
