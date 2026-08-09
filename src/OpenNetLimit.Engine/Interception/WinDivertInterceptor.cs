@@ -72,7 +72,7 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
         try
         {
-            _flowHandle = new WinDivert("", WinDivert.Layer.Flow, 0, WinDivert.Flag.Sniff | WinDivert.Flag.RecvOnly);
+            _flowHandle = new WinDivert("true", WinDivert.Layer.Flow, 0, WinDivert.Flag.Sniff | WinDivert.Flag.RecvOnly);
             _networkHandle = new WinDivert("true", WinDivert.Layer.Network, 0, default);
         }
         catch
