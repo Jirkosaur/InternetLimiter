@@ -18,6 +18,11 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
     private readonly PacketScheduler _scheduler = new();
     private readonly DnsDomainCache _dnsCache = new();
     private long _totalBlocked;
+    private long _flowEvents;
+    private long _flowRegistrations;
+    private long _flowDeletions;
+    private long _lookupHits;
+    private long _lookupMisses;
 
     private static readonly HashSet<string> ProtectedProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -67,7 +72,7 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
         try
         {
-            _flowHandle = new WinDivert("", WinDivert.Layer.Flow, 0, WinDivert.Flag.Sniff);
+            _flowHandle = new WinDivert("", WinDivert.Layer.Flow, 0, WinDivert.Flag.Sniff | WinDivert.Flag.RecvOnly);
             _networkHandle = new WinDivert("true", WinDivert.Layer.Network, 0, default);
         }
         catch
@@ -128,16 +133,17 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
     private void FlowLoop(CancellationToken ct)
     {
-        if (_flowHandle is null) return;
         var buffer = new Memory<byte>(new byte[65535]);
         var addrBuffer = new Memory<WinDivertAddress>(new WinDivertAddress[1]);
         int consecutiveErrors = 0;
+        long lastLogTicks = 0;
 
         while (!ct.IsCancellationRequested)
         {
             try
             {
                 var (recvLen, _) = _flowHandle!.RecvEx(buffer.Span, addrBuffer.Span);
+                Interlocked.Increment(ref _flowEvents);
                 consecutiveErrors = 0;
                 ref var addr = ref addrBuffer.Span[0];
 
@@ -157,13 +163,21 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
                 if (addr.Event == WinDivert.Event.FlowEstablished)
                 {
+                    Interlocked.Increment(ref _flowRegistrations);
                     string processName = ResolveProcessName(flowData.ProcessId);
                     string? processPath = ResolveProcessPath(flowData.ProcessId);
                     _flowTracker.RegisterFlow(flowKey, flowData.ProcessId, processName, processPath);
                 }
                 else if (addr.Event == WinDivert.Event.FlowDeleted)
                 {
+                    Interlocked.Increment(ref _flowDeletions);
                     _flowTracker.UnregisterFlow(flowKey);
+                }
+
+                if (Environment.TickCount64 - lastLogTicks > 10_000)
+                {
+                    lastLogTicks = Environment.TickCount64;
+                    Trace.TraceInformation($"FlowLoop: events={_flowEvents} reg={_flowRegistrations} del={_flowDeletions}");
                 }
             }
             catch (Exception) when (ct.IsCancellationRequested)
@@ -190,6 +204,7 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
         var buffer = new Memory<byte>(new byte[65535]);
         var addrBuffer = new Memory<WinDivertAddress>(new WinDivertAddress[1]);
         int consecutiveErrors = 0;
+        long lastLogTicks = 0;
 
         while (!ct.IsCancellationRequested)
         {
@@ -213,9 +228,11 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 var processId = _flowTracker.LookupProcessId(flowKey);
                 if (processId is null)
                 {
+                    Interlocked.Increment(ref _lookupMisses);
                     _networkHandle.SendEx(packet.Span, addrBuffer.Span);
                     continue;
                 }
+                Interlocked.Increment(ref _lookupHits);
 
                 var connection = _flowTracker.LookupConnection(flowKey);
                 string processName = connection?.ProcessName ?? "unknown";
@@ -270,6 +287,12 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 }
 
                 _networkHandle.SendEx(packet.Span, addrBuffer.Span);
+
+                if (Environment.TickCount64 - lastLogTicks > 10_000)
+                {
+                    lastLogTicks = Environment.TickCount64;
+                    Trace.TraceInformation($"NetworkLoop: hits={_lookupHits} misses={_lookupMisses}");
+                }
             }
             catch (Exception) when (ct.IsCancellationRequested)
             {
@@ -302,8 +325,8 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 Span<byte> dstBytes = stackalloc byte[4];
                 new ReadOnlySpan<byte>(&result.IPv4Hdr->SrcAddr, 4).CopyTo(srcBytes);
                 new ReadOnlySpan<byte>(&result.IPv4Hdr->DstAddr, 4).CopyTo(dstBytes);
-                srcAddr = new IPAddress(srcBytes);
-                dstAddr = new IPAddress(dstBytes);
+                srcAddr = NormalizeIp(new IPAddress(srcBytes));
+                dstAddr = NormalizeIp(new IPAddress(dstBytes));
             }
             else if (result.IPv6Hdr != null)
             {
@@ -311,8 +334,8 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 Span<byte> dstBytes = stackalloc byte[16];
                 new ReadOnlySpan<byte>(&result.IPv6Hdr->SrcAddr, 16).CopyTo(srcBytes);
                 new ReadOnlySpan<byte>(&result.IPv6Hdr->DstAddr, 16).CopyTo(dstBytes);
-                srcAddr = new IPAddress(srcBytes);
-                dstAddr = new IPAddress(dstBytes);
+                srcAddr = NormalizeIp(new IPAddress(srcBytes));
+                dstAddr = NormalizeIp(new IPAddress(dstBytes));
             }
             else
             {
@@ -349,13 +372,22 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
         return null;
     }
 
+    private static IPAddress NormalizeIp(IPAddress ip)
+        => ip.IsIPv4MappedToIPv6 ? ip.MapToIPv4() : ip;
+
     private static unsafe IPAddress ParseIPv6Addr(IPv6Addr addr)
     {
         Span<byte> bytes = stackalloc byte[16];
-        byte* ptr = (byte*)&addr;
-        for (int i = 0; i < 16; i++)
-            bytes[i] = ptr[i];
-        return new IPAddress(bytes);
+        var words = (uint*)&addr;
+        for (int i = 0; i < 4; i++)
+        {
+            uint w = words[i];
+            bytes[i * 4 + 0] = (byte)(w >> 24);
+            bytes[i * 4 + 1] = (byte)(w >> 16);
+            bytes[i * 4 + 2] = (byte)(w >> 8);
+            bytes[i * 4 + 3] = (byte)w;
+        }
+        return NormalizeIp(new IPAddress(bytes));
     }
 
     private static string ResolveProcessName(uint processId)
