@@ -31,7 +31,14 @@ public class ProcessRateLimiter : IRateLimiter
             downloadBytesPerSecond > 0 ? new TokenBucket(downloadBytesPerSecond) : null,
             uploadBytesPerSecond > 0 ? new TokenBucket(uploadBytesPerSecond) : null);
 
-        _buckets.AddOrUpdate(processId, buckets, (_, _) => buckets);
+        _buckets.AddOrUpdate(processId, buckets, (_, existing) =>
+            SameLimits(existing, buckets) ? existing : buckets);
+    }
+
+    private static bool SameLimits(ProcessBuckets a, ProcessBuckets b)
+    {
+        return (a.Download?.RefillBytesPerSecond ?? 0) == (b.Download?.RefillBytesPerSecond ?? 0)
+            && (a.Upload?.RefillBytesPerSecond ?? 0) == (b.Upload?.RefillBytesPerSecond ?? 0);
     }
 
     public void RemoveLimit(uint processId)

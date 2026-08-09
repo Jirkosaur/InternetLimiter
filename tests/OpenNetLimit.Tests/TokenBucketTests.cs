@@ -129,4 +129,47 @@ public class ProcessRateLimiterTests
         Assert.True(downloadDelay > TimeSpan.Zero);
         Assert.True(uploadDelay > TimeSpan.Zero);
     }
+
+    [Fact]
+    public void SetLimit_SameLimits_PreservesBucketState()
+    {
+        var limiter = new ProcessRateLimiter();
+        limiter.SetLimit(1, 1000, 1000);
+
+        limiter.TryConsume(1, 65536, false);
+        Assert.True(limiter.GetDelay(1, 1000, false) > TimeSpan.Zero);
+
+        limiter.SetLimit(1, 1000, 1000);
+
+        Assert.True(limiter.GetDelay(1, 1000, false) > TimeSpan.Zero);
+    }
+
+    [Fact]
+    public void SetLimit_ChangedLimit_ReplacesBucket()
+    {
+        var limiter = new ProcessRateLimiter();
+        limiter.SetLimit(1, 1000, 1000);
+
+        limiter.TryConsume(1, 65536, false);
+        limiter.SetLimit(1, 2000, 1000);
+
+        Assert.Equal(TimeSpan.Zero, limiter.GetDelay(1, 1000, false));
+    }
+
+    [Fact]
+    public void SetLimit_CalledRepeatedly_DoesNotResetBucket()
+    {
+        var limiter = new ProcessRateLimiter();
+        limiter.SetLimit(1, 1000, 1000);
+
+        for (int i = 0; i < 100; i++)
+            limiter.SetLimit(1, 1000, 1000);
+
+        limiter.TryConsume(1, 65536, false);
+
+        for (int i = 0; i < 100; i++)
+            limiter.SetLimit(1, 1000, 1000);
+
+        Assert.True(limiter.GetDelay(1, 1000, false) > TimeSpan.Zero);
+    }
 }
