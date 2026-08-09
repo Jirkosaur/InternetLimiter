@@ -54,6 +54,7 @@ CONTINUATION_PROMPT.md
 
 EXECUTION_PLAN.md
 PROGRESS.md
+PLAN.md
 
 dist/
 dist_v2/
@@ -69,3 +70,7 @@ dist_v6/
 dist_v7/
 
 dist_v8/
+
+dist_v9/
+
+dist_v10/
