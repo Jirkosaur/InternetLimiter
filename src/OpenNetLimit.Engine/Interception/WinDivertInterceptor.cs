@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Runtime.InteropServices;
 using OpenNetLimit.Core.Interfaces;
 using OpenNetLimit.Core.Models;
 using RuleAction = OpenNetLimit.Core.Models.RuleAction;
@@ -228,6 +229,17 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
                 var processId = _flowTracker.LookupProcessId(flowKey);
                 if (processId is null)
                 {
+                    processId = TryResolveProcessIdFromSystem(flowKey);
+                    if (processId is not null)
+                    {
+                        string pName = ResolveProcessName(processId.Value);
+                        string? pPath = ResolveProcessPath(processId.Value);
+                        _flowTracker.RegisterFlow(flowKey, processId.Value, pName, pPath);
+                    }
+                }
+
+                if (processId is null)
+                {
                     Interlocked.Increment(ref _lookupMisses);
                     _networkHandle.SendEx(packet.Span, addrBuffer.Span);
                     continue;
@@ -414,6 +426,134 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
         {
             return null;
         }
+    }
+
+    private enum TCP_TABLE_CLASS
+    {
+        TCP_TABLE_BASIC_LISTENER,
+        TCP_TABLE_BASIC_CONNECTIONS,
+        TCP_TABLE_BASIC_ALL,
+        TCP_TABLE_OWNER_PID_LISTENER,
+        TCP_TABLE_OWNER_PID_CONNECTIONS,
+        TCP_TABLE_OWNER_PID_ALL,
+        TCP_TABLE_OWNER_MODULE_LISTENER,
+        TCP_TABLE_OWNER_MODULE_CONNECTIONS,
+        TCP_TABLE_OWNER_MODULE_ALL
+    }
+
+    private enum UDP_TABLE_CLASS
+    {
+        UDP_TABLE_BASIC,
+        UDP_TABLE_OWNER_PID,
+        UDP_TABLE_OWNER_MODULE
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MIB_TCPROW_OWNER_PID
+    {
+        public uint state;
+        public uint localAddr;
+        public byte localPort1;
+        public byte localPort2;
+        public byte localPort3;
+        public byte localPort4;
+        public uint remoteAddr;
+        public byte remotePort1;
+        public byte remotePort2;
+        public byte remotePort3;
+        public byte remotePort4;
+        public uint owningPid;
+
+        public ushort LocalPort => (ushort)((localPort1 << 8) + localPort2);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MIB_UDPROW_OWNER_PID
+    {
+        public uint localAddr;
+        public byte localPort1;
+        public byte localPort2;
+        public byte localPort3;
+        public byte localPort4;
+        public uint owningPid;
+
+        public ushort LocalPort => (ushort)((localPort1 << 8) + localPort2);
+    }
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedTcpTable(IntPtr pTcpTable, ref int pdwSize, bool bOrder, uint ulAf, TCP_TABLE_CLASS tableClass, uint reserved = 0);
+
+    [DllImport("iphlpapi.dll", SetLastError = true)]
+    private static extern uint GetExtendedUdpTable(IntPtr pUdpTable, ref int pdwSize, bool bOrder, uint ulAf, UDP_TABLE_CLASS tableClass, uint reserved = 0);
+
+    private static uint? TryResolveProcessIdFromSystem(FlowKey flowKey)
+    {
+        try
+        {
+            ushort targetPort = flowKey.LocalPort;
+            int AF_INET = 2; // AF_INET
+            int size = 0;
+
+            if (flowKey.Protocol == TransportProtocol.Tcp)
+            {
+                GetExtendedTcpTable(IntPtr.Zero, ref size, false, (uint)AF_INET, TCP_TABLE_CLASS.TCP_TABLE_OWNER_PID_ALL, 0);
+                if (size > 0)
+                {
+                    IntPtr buffer = Marshal.AllocHGlobal(size);
+                    try
+                    {
+                        if (GetExtendedTcpTable(buffer, ref size, false, (uint)AF_INET, TCP_TABLE_CLASS.TCP_TABLE_OWNER_PID_ALL, 0) == 0)
+                        {
+                            int numEntries = Marshal.ReadInt32(buffer);
+                            IntPtr rowPtr = IntPtr.Add(buffer, 4);
+                            int rowSize = Marshal.SizeOf<MIB_TCPROW_OWNER_PID>();
+                            for (int i = 0; i < numEntries; i++)
+                            {
+                                var row = Marshal.PtrToStructure<MIB_TCPROW_OWNER_PID>(rowPtr);
+                                if (row.LocalPort == targetPort && row.owningPid > 0)
+                                    return row.owningPid;
+                                rowPtr = IntPtr.Add(rowPtr, rowSize);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(buffer);
+                    }
+                }
+            }
+            else if (flowKey.Protocol == TransportProtocol.Udp)
+            {
+                GetExtendedUdpTable(IntPtr.Zero, ref size, false, (uint)AF_INET, UDP_TABLE_CLASS.UDP_TABLE_OWNER_PID, 0);
+                if (size > 0)
+                {
+                    IntPtr buffer = Marshal.AllocHGlobal(size);
+                    try
+                    {
+                        if (GetExtendedUdpTable(buffer, ref size, false, (uint)AF_INET, UDP_TABLE_CLASS.UDP_TABLE_OWNER_PID, 0) == 0)
+                        {
+                            int numEntries = Marshal.ReadInt32(buffer);
+                            IntPtr rowPtr = IntPtr.Add(buffer, 4);
+                            int rowSize = Marshal.SizeOf<MIB_UDPROW_OWNER_PID>();
+                            for (int i = 0; i < numEntries; i++)
+                            {
+                                var row = Marshal.PtrToStructure<MIB_UDPROW_OWNER_PID>(rowPtr);
+                                if (row.LocalPort == targetPort && row.owningPid > 0)
+                                    return row.owningPid;
+                                rowPtr = IntPtr.Add(rowPtr, rowSize);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(buffer);
+                    }
+                }
+            }
+        }
+        catch { }
+
+        return null;
     }
 
     public void Dispose()
