@@ -54,3 +54,6 @@ CONTINUATION_PROMPT.md
 
 EXECUTION_PLAN.md
 PROGRESS.md
+
+dist/
+dist_v2/
