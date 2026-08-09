@@ -67,7 +67,22 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
         try
         {
-            _flowHandle = new WinDivert("true", WinDivert.Layer.Flow, 0, WinDivert.Flag.Sniff);
+            try
+            {
+                _flowHandle = new WinDivert("true", WinDivert.Layer.Flow, 0, WinDivert.Flag.ReadOnly);
+            }
+            catch
+            {
+                _flowHandle = new WinDivert("true", WinDivert.Layer.Flow, 0, default);
+            }
+        }
+        catch
+        {
+            _flowHandle = null;
+        }
+
+        try
+        {
             _networkHandle = new WinDivert("true", WinDivert.Layer.Network, 0, default);
         }
         catch
@@ -128,6 +143,7 @@ public sealed class WinDivertInterceptor : IPacketInterceptor
 
     private void FlowLoop(CancellationToken ct)
     {
+        if (_flowHandle is null) return;
         var buffer = new Memory<byte>(new byte[65535]);
         var addrBuffer = new Memory<WinDivertAddress>(new WinDivertAddress[1]);
         int consecutiveErrors = 0;
